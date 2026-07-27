@@ -1,17 +1,21 @@
 import { useState, useRef, useCallback, KeyboardEvent } from 'react';
-import { useT, MessageKeys } from '../i18n';
+import { useT } from '../i18n';
 import styles from './ChatInput.module.css';
+
+export interface PresetItem {
+  label: string;
+  text: string;
+}
 
 interface Props {
   onSend: (text: string) => void;
   onStop: () => void;
   onClear: () => void;
   disabled: boolean;
+  presets: PresetItem[];
 }
 
-const PRESET_KEYS = ['preset.1', 'preset.2'] as const;
-
-export default function ChatInput({ onSend, onStop, onClear, disabled }: Props) {
+export default function ChatInput({ onSend, onStop, onClear, disabled, presets }: Props) {
   const [value, setValue] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { t } = useT();
@@ -48,14 +52,14 @@ export default function ChatInput({ onSend, onStop, onClear, disabled }: Props) 
   return (
     <div className={styles.bar}>
       <div className={styles.presets}>
-        {PRESET_KEYS.map(key => (
+        {presets.map(preset => (
           <button
-            key={key}
+            key={preset.label}
             className={styles.presetChip}
-            onClick={() => handlePreset(t(key as MessageKeys))}
+            onClick={() => handlePreset(preset.text)}
             disabled={disabled}
           >
-            {t(key as MessageKeys)}
+            {preset.label}
           </button>
         ))}
       </div>

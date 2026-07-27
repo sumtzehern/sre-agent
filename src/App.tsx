@@ -1,8 +1,8 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import type {
   Message,
-  ToolLampState,
   ConversationSummary,
+  ReasoningStep,
 } from './types';
 import {
   fetchConversationHistory,
@@ -12,31 +12,19 @@ import {
   deleteConversation,
 } from './api';
 import type { RawSseEvent } from './api';
-import ToolIndicators from './components/ToolIndicators';
 import ChatWindow from './components/ChatWindow';
 import ChatInput from './components/ChatInput';
 import DebugPanel from './components/DebugPanel';
 import CodeViewer from './components/CodeViewer';
+import ReasoningChainPanel from './components/ReasoningChainPanel';
 import ConversationSidebar from './components/ConversationSidebar';
 import GitHubLink from './components/GitHubLink';
 import DeployLink from './components/DeployLink';
-import { I18nProvider, LangToggle, useT, MessageKeys } from './i18n';
+import { I18nProvider, LangToggle, useT } from './i18n';
 import { deleteSnapshot, loadSnapshot, saveSnapshot } from './lib/chatUiStore';
+import { parseReasoningChain } from './lib/reasoningChain';
+import cdnIncidentFixture from './fixtures/cdnIncident';
 import styles from './App.module.css';
-
-const LAMP_IDS = ['get_weather', 'get_clothing_advice', 'translate_text', 'text_statistics'] as const;
-const LAMP_ICONS: Record<string, string> = {
-  get_weather: '☀️',
-  get_clothing_advice: '👔',
-  translate_text: '🌐',
-  text_statistics: '📊',
-};
-const LAMP_I18N_KEYS: Record<string, string> = {
-  get_weather: 'tool.weather',
-  get_clothing_advice: 'tool.clothing',
-  translate_text: 'tool.translate',
-  text_statistics: 'tool.statistics',
-};
 
 const CONVERSATION_ID_STORAGE_KEY = 'eo_conversation_id';
 
@@ -88,22 +76,15 @@ export default function App() {
 
 function AppInner() {
   const { t } = useT();
-  const buildLamps = useCallback((): ToolLampState[] =>
-    LAMP_IDS.map(id => ({
-      id,
-      label: t(LAMP_I18N_KEYS[id] as MessageKeys),
-      icon: LAMP_ICONS[id],
-      active: false,
-      animKey: 0,
-    })),
-  [t]);
 
   const [messages, setMessages] = useState<Message[]>([]);
-  const [lamps, setLamps]       = useState<ToolLampState[]>(buildLamps);
   const [loading, setLoading]   = useState(false);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [debugEvents, setDebugEvents] = useState<RawSseEvent[]>([]);
-  const [rightPanelMode, setRightPanelMode] = useState<'code' | 'debug'>('code');
+  const [rightPanelMode, setRightPanelMode] = useState<'code' | 'debug' | 'reasoning'>('code');
+  // Reasoning chain parsed from the most recently completed assistant message.
+  // null = no verified chain available yet (shows the panel's empty state).
+  const [reasoningSteps, setReasoningSteps] = useState<ReasoningStep[] | null>(null);
 
   // Conversation list (sidebar) state
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
@@ -124,16 +105,6 @@ function AppInner() {
   useEffect(() => {
     conversationIdRef.current = activeConversationId;
   }, [activeConversationId]);
-
-  // Update lamp labels when language changes
-  useEffect(() => {
-    setLamps(prev =>
-      prev.map(l => ({
-        ...l,
-        label: t(LAMP_I18N_KEYS[l.id] as MessageKeys),
-      }))
-    );
-  }, [t]);
 
   // Persist a UI snapshot of the current conversation's messages to IndexedDB
   // (debounced) so a refresh restores instantly without hitting /history.
@@ -284,6 +255,7 @@ function AppInner() {
   const handleSend = useCallback(async (text: string) => {
     initDoneRef.current = true;
     setRightPanelMode('debug');
+    setReasoningSteps(null);
 
     const userMsg: Message = {
       id: crypto.randomUUID(),
@@ -304,6 +276,10 @@ function AppInner() {
 
     setMessages(prev => [...prev, userMsg, botMsg]);
     setLoading(true);
+
+    // Accumulated locally (not via setState) so onDone can parse the final
+    // text synchronously without racing React's async state updates.
+    let accumulatedText = '';
 
     /**
      * Optimistic sidebar update — fires as soon as the backend emits its first
@@ -348,22 +324,13 @@ function AppInner() {
 
     const ctrl = sendMessageStream(text, {
       onTextDelta(delta) {
+        accumulatedText += delta;
         updateBotMessage(content => content + delta);
       },
 
-      onToolCalled(toolName) {
-        setLamps(prev =>
-          prev.map(l =>
-            l.id === toolName
-              ? { ...l, active: true, animKey: l.animKey + 1 }
-              : l
-          )
-        );
-        setTimeout(() => {
-          setLamps(prev =>
-            prev.map(l => (l.id === toolName ? { ...l, active: false } : l))
-          );
-        }, 1000);
+      onToolCalled() {
+        // Apodex has no custom function calling, so this never fires — kept
+        // as a no-op since StreamCallbacks still requires the field.
       },
 
       onRawEvent(event) {
@@ -376,7 +343,6 @@ function AppInner() {
         // hundreds of one-token rows.
         if (event.eventType === 'text_delta') {
           const delta = (event.data as { delta?: string } | null)?.delta ?? '';
-          setRightPanelMode('debug');
           setDebugEvents(prev => {
             const last = prev[prev.length - 1];
             if (last && last.eventType === 'text_delta') {
@@ -393,13 +359,22 @@ function AppInner() {
           });
           return;
         }
-        setRightPanelMode('debug');
         setDebugEvents(prev => [...prev, event]);
       },
 
       onDone() {
         clearBotStreaming();
         finishStream();
+
+        // Try to extract a verified reasoning chain from the finished answer.
+        // If found, switch the right panel to show it — otherwise leave the
+        // trace/debug view up (e.g. for free-form chat with no evidence).
+        const chain = parseReasoningChain(accumulatedText);
+        if (chain) {
+          setReasoningSteps(chain);
+          setRightPanelMode('reasoning');
+        }
+
         // Reconcile with backend so the title (and any other fields the runtime
         // synthesized) reflect the server's authoritative state.
         void refreshConversations('replace');
@@ -455,6 +430,7 @@ function AppInner() {
     setActiveConversationId(newId);
     setMessages([]);
     setDebugEvents([]);
+    setReasoningSteps(null);
     setRightPanelMode('code');
     setLoading(false);
     initDoneRef.current = false;
@@ -488,6 +464,7 @@ function AppInner() {
     conversationIdRef.current = id;
     setActiveConversationId(id);
     setRightPanelMode('code');
+    setReasoningSteps(null);
     void loadConversation(id);
   }, [loading, loadConversation]);
 
@@ -501,6 +478,7 @@ function AppInner() {
     setActiveConversationId(newId);
     setMessages([]);
     setDebugEvents([]);
+    setReasoningSteps(null);
     setRightPanelMode('code');
     initDoneRef.current = false;
     setHistoryLoading(false);
@@ -537,6 +515,7 @@ function AppInner() {
       setActiveConversationId(newId);
       setMessages([]);
       setDebugEvents([]);
+      setReasoningSteps(null);
       setRightPanelMode('code');
       initDoneRef.current = false;
       setHistoryLoading(false);
@@ -550,6 +529,10 @@ function AppInner() {
   }, [loading, t]);
 
   const sidebarHasMore = useMemo(() => Boolean(nextCursor), [nextCursor]);
+
+  const presets = useMemo(() => [
+    { label: t('preset.incident'), text: cdnIncidentFixture },
+  ], [t]);
 
   return (
     <div className={styles.shell}>
@@ -579,7 +562,6 @@ function AppInner() {
                 <p className={styles.subtitle}>{t("app.subtitle")}</p>
               </div>
             </div>
-            <ToolIndicators lamps={lamps} />
           </header>
 
           <div className={styles.chatWindowShell}>
@@ -590,12 +572,14 @@ function AppInner() {
               </div>
             )}
           </div>
-          <ChatInput onSend={handleSend} onStop={handleStop} onClear={handleClearHistory} disabled={loading} />
+          <ChatInput onSend={handleSend} onStop={handleStop} onClear={handleClearHistory} disabled={loading} presets={presets} />
         </div>
 
         <div className={styles.codePanel}>
           {rightPanelMode === 'code' ? (
             <CodeViewer />
+          ) : rightPanelMode === 'reasoning' ? (
+            <ReasoningChainPanel steps={reasoningSteps} />
           ) : (
             <DebugPanel events={debugEvents} onClear={() => setDebugEvents([])} />
           )}

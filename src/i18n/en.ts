@@ -1,26 +1,19 @@
 const en = {
   // Header
-  "app.title": "OpenAI Agents Starter",
-  "app.subtitle": "Running on EdgeOne Makers with session memory & Agent Tools",
+  "app.title": "Verified RCA Agent",
+  "app.subtitle": "Evidence-grounded root-cause analysis, powered by Apodex",
 
   // Empty state
-  "empty.title": "OpenAI Agents Starter",
-  "empty.hint": "I'm an OpenAI Agent running on EdgeOne with custom tools and session memory. I can help with weather, clothing advice, translation, and text statistics.",
-  "empty.features": "EdgeOne Store · Session Memory · Agent Tools",
+  "empty.title": "Verified RCA Agent",
+  "empty.hint": "Paste in an incident plus its evidence and I'll investigate step by step — every conclusion cites a specific EVIDENCE-ID, never assumed.",
+  "empty.features": "Apodex Deep Solve · Evidence Citations · Auditable Reasoning Chain",
 
   // Chat input
-  "chat.placeholder": "Type a message...  ⏎ Send · Shift+⏎ Newline",
-  "chat.hint": "Powered by OpenAI Agents SDK + EdgeOne Makers · Demo only",
+  "chat.placeholder": "Paste an incident + evidence...  ⏎ Send · Shift+⏎ Newline",
+  "chat.hint": "Powered by Apodex + EdgeOne Makers · Demo only",
 
-  // Preset questions
-  "preset.1": "What is the weather like in Beijing now? Any clothing suggestions?",
-  "preset.2": "Translate \"Hello, welcome to Beijing!\" into Chinese and count the characters.",
-
-  // Tool indicators
-  "tool.weather": "Weather",
-  "tool.clothing": "Clothing",
-  "tool.translate": "Translate",
-  "tool.statistics": "Statistics",
+  // Preset
+  "preset.incident": "Load CDN incident: dropped query params after Akamai→EdgeOne migration",
 
   // Status & errors
   "status.error": "Request failed. Please check if the backend service is running.",
@@ -33,6 +26,16 @@ const en = {
   "debug.clear": "Clear",
   "debug.empty": "Waiting for SSE events...",
   "debug.emptyHint": "After sending a message, all raw backend data will be displayed here.",
+
+  // Reasoning chain panel
+  "reasoning.title": "Reasoning Chain",
+  "reasoning.steps": "steps",
+  "reasoning.step": "Step",
+  "reasoning.hypothesis": "Hypothesis",
+  "reasoning.evidence": "Evidence checked",
+  "reasoning.conclusion": "Conclusion",
+  "reasoning.empty": "No verified reasoning chain yet.",
+  "reasoning.emptyHint": "Paste an incident with labeled EVIDENCE blocks to see an auditable, citation-backed RCA here.",
 
   // Conversation sidebar
   "sidebar.label": "Conversation list",

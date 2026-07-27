@@ -24,7 +24,6 @@ from openai.types.responses import ResponseTextDeltaEvent
 from agents import Agent, OpenAIChatCompletionsModel, Runner
 
 from .._logger import create_logger
-from .._tools import get_weather, get_clothing_advice, translate_text, text_statistics
 
 
 load_dotenv()
@@ -33,26 +32,59 @@ logger = create_logger("chat")
 
 
 # ========== LLM Model ==========
+# Apodex API — OpenAI-compatible Chat Completions. See ../../../apodex/apodex/apodex.md
+# for the full reference this integration is built from.
 llm_client = AsyncOpenAI(
-    api_key=os.getenv("AI_GATEWAY_API_KEY"),
-    base_url=os.getenv("AI_GATEWAY_BASE_URL"),
+    api_key=os.getenv("APODEX_API_KEY"),
+    base_url=os.getenv("APODEX_BASE_URL", "https://api.apodex.ai/v1"),
 )
 
 llm_model = OpenAIChatCompletionsModel(
-    model=os.getenv("AI_GATEWAY_MODEL", "@makers/deepseek-v4-flash"),
+    model=os.getenv("APODEX_MODEL", "apodex-1-0-deep-solve"),
     openai_client=llm_client,
 )
 
 
 # ========== Agent ==========
+# Verified RCA agent: an SRE root-cause-analysis assistant whose core contract
+# is evidence-grounded reasoning. Every claim must cite a specific EVIDENCE-ID
+# from what the user pasted in, and every answer ends with a machine-parseable
+# JSON reasoning chain that the frontend's ReasoningChainPanel renders.
+#
+# NOTE: Apodex does not support custom function calling (`tools`/`tool_choice`)
+# or `response_format`/`json_schema` structured output — the reasoning-chain
+# contract below is enforced entirely through prompting, not API features.
 agent = Agent(
-    name="Assistant",
+    name="Verified RCA Agent",
     instructions=(
-        "You are an EdgeOne Makers OpenAI Agents SDK (Python) starter example: an out-of-the-box Agent template that helps developers quickly run through and validate platform capabilities.\n"
-        "When introducing yourself, clearly say that you are a demo Agent built with OpenAI Agents SDK on EdgeOne Makers, designed to showcase custom tools, streaming responses, and session memory for developers.\n"
-        "Use the four custom tools when they help you answer the user concretely. Otherwise answer directly and keep the response brief."
+        "You are a Site Reliability Engineer performing root-cause analysis on "
+        "an incident described by the user.\n\n"
+        "Rules:\n"
+        "- Investigate step by step: propose a hypothesis, check it against "
+        "specific evidence the user provided, then state whether that "
+        "hypothesis is confirmed, refuted, or partially supported.\n"
+        "- Every conclusion MUST cite the specific EVIDENCE-ID(s) it is based "
+        "on (e.g. EVIDENCE-1, EVIDENCE-2). Do not state or assume any "
+        "configuration or system behavior that is not shown in the evidence "
+        "the user provided.\n"
+        "- If the evidence is insufficient to confirm a hypothesis, say so "
+        "explicitly rather than guessing.\n"
+        "- If the user's message contains no labeled EVIDENCE blocks, answer "
+        "normally and do not fabricate a reasoning chain.\n"
+        "- When evidence IS provided, after your narrative investigation, end "
+        "your response with a fenced json code block containing ONLY a JSON "
+        "array, no other text inside the fence, using exactly this schema:\n\n"
+        "```json\n"
+        "[\n"
+        "  {\n"
+        '    "hypothesis": "<string>",\n'
+        '    "evidence_checked": ["EVIDENCE-1", "EVIDENCE-2"],\n'
+        '    "conclusion": "<string>",\n'
+        '    "confidence": "low" | "medium" | "high"\n'
+        "  }\n"
+        "]\n"
+        "```"
     ),
-    tools=[get_weather, get_clothing_advice, translate_text, text_statistics],
     model=llm_model,
 )
 
@@ -73,6 +105,9 @@ async def _event_stream(
 
     Accepts cancel_signal to enable cancellation — when set,
     the loop breaks and the SDK releases its connection.
+
+    NOTE: Apodex has no custom function calling, so there is no `tool_called`
+    branch here (unlike the original template) — only text_delta frames.
     """
     result = Runner.run_streamed(agent, input=message, session=session)
 
@@ -85,17 +120,6 @@ async def _event_stream(
         if event.type == "raw_response_event" and isinstance(event.data, ResponseTextDeltaEvent):
             logger.log(f"[stream] text_delta: {repr(event.data.delta)}")
             yield sse_event("text_delta", {"delta": event.data.delta})
-
-        # Semantic event → tool called
-        elif event.type == "run_item_stream_event":
-            if event.name == "tool_called":
-                tool_name = (
-                    getattr(event.item, "name", None)
-                    or getattr(getattr(event.item, "raw_item", None), "name", None)
-                )
-                if tool_name:
-                    logger.log(f"[stream] tool_called: {tool_name}")
-                    yield sse_event("tool_called", {"tool": tool_name})
 
 
 # ========== Core Handler ==========

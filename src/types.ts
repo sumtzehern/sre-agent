@@ -47,3 +47,15 @@ export interface ListConversationsResponse {
   nextCursor?: string;
   previousCursor?: string;
 }
+
+/**
+ * One step of an evidence-grounded RCA reasoning chain, parsed from the
+ * trailing ```json block the backend's agent instructions require it to
+ * emit. See src/lib/reasoningChain.ts for the parser.
+ */
+export interface ReasoningStep {
+  hypothesis: string;
+  evidenceChecked: string[];
+  conclusion: string;
+  confidence: 'low' | 'medium' | 'high';
+}

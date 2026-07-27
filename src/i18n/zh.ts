@@ -1,26 +1,19 @@
 const zh = {
   // Header
-  "app.title": "OpenAI Agents Starter",
-  "app.subtitle": "运行在 EdgeOne Makers 上，支持会话记忆、Agent Tools",
+  "app.title": "可验证 RCA 智能体",
+  "app.subtitle": "由 Apodex 驱动的、有据可查的根因分析",
 
   // Empty state
-  "empty.title": "OpenAI Agents Starter",
-  "empty.hint": "我是运行在 EdgeOne 环境中的 OpenAI Agents，支持自定义工具、会话记忆，并帮助你完成天气查询、穿衣建议、翻译和文本统计。",
-  "empty.features": "EdgeOne Store · Session Memory · Agent Tools",
+  "empty.title": "可验证 RCA 智能体",
+  "empty.hint": "粘贴事件描述及其证据，我会逐步排查——每一条结论都会引用具体的 EVIDENCE-ID，绝不凭空假设。",
+  "empty.features": "Apodex Deep Solve · 证据引用 · 可审计推理链",
 
   // Chat input
-  "chat.placeholder": "发消息…  ⏎ 发送 · Shift+⏎ 换行",
-  "chat.hint": "由 OpenAI Agents SDK + EdgeOne Makers 驱动 · 仅供演示",
+  "chat.placeholder": "粘贴事件描述与证据…  ⏎ 发送 · Shift+⏎ 换行",
+  "chat.hint": "由 Apodex + EdgeOne Makers 驱动 · 仅供演示",
 
-  // Preset questions
-  "preset.1": "现在北京天气怎么样，有什么穿衣建议吗？",
-  "preset.2": "帮我翻译英文\"你好，欢迎来到北京！\"，并统计翻译字符数。",
-
-  // Tool indicators
-  "tool.weather": "天气查询",
-  "tool.clothing": "穿衣建议",
-  "tool.translate": "文本翻译",
-  "tool.statistics": "文本统计",
+  // Preset
+  "preset.incident": "加载 CDN 事件：Akamai→EdgeOne 迁移后查询参数丢失",
 
   // Status & errors
   "status.error": "⚠️ 请求失败，请检查后端服务是否启动。",
@@ -33,6 +26,16 @@ const zh = {
   "debug.clear": "清除",
   "debug.empty": "等待 SSE 事件...",
   "debug.emptyHint": "发送消息后，所有原始后端数据将在此处显示。",
+
+  // Reasoning chain panel
+  "reasoning.title": "推理链",
+  "reasoning.steps": "步骤",
+  "reasoning.step": "第",
+  "reasoning.hypothesis": "假设",
+  "reasoning.evidence": "已核对证据",
+  "reasoning.conclusion": "结论",
+  "reasoning.empty": "暂无可验证的推理链。",
+  "reasoning.emptyHint": "粘贴带有标注 EVIDENCE 的事件描述，即可在此查看有据可查、可审计的根因分析。",
 
   // Conversation sidebar
   "sidebar.label": "会话列表",
