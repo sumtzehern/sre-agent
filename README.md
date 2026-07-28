@@ -18,6 +18,14 @@ A minimal, production-shaped Python starter that wires the OpenAI Agents SDK int
 - **Honest cancellation** — backend `context.utils.abort_active_run()` truly interrupts the LLM call.
 - **Two-folder backend** — long-running stateful work in `agents/`, short stateless `/history` in `cloud-functions/`.
 
+## Benchmark
+
+In a POC-style grounding benchmark, verified (evidence-grounded) RCA answers were
+**~7.7x more likely to be judged grounded than naive (no-evidence) answers (77% vs.
+10%)** on a CDN-migration incident fixture. See [`benchmark.md`](./benchmark.md) for
+methodology, the reproducible command, and caveats (currently N=1 — re-run with a
+funded API key to extend it).
+
 ## Environment Variables
 
 | Variable | Required | Description |
